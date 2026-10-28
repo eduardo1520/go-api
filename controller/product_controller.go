@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"go-api/model"
+	"go-api/response"
 	"go-api/service"
 	"net/http"
 	"strconv"
@@ -32,14 +33,14 @@ func (p *ProductController) GetProducts(ctx *gin.Context) {
 func (p *ProductController) GetProductById(ctx *gin.Context) {
 	id := ctx.Param("productId")
 	if id == "" {
-		response := model.Response{Message: "Id do produto não pode ser nulo."}
+		response := response.Message{Message: "Id do produto não pode ser nulo."}
 		ctx.JSON(http.StatusBadRequest, response)
 		return
 	}
 
 	productId, err := strconv.Atoi(id)
 	if err != nil {
-		response := model.Response{Message: "Id do produto inválido."}
+		response := response.Message{Message: "Id do produto inválido."}
 		ctx.JSON(http.StatusBadRequest, response)
 		return
 	}
@@ -47,12 +48,12 @@ func (p *ProductController) GetProductById(ctx *gin.Context) {
 	product, err := p.productService.GetProductById(productId)
 	if err != nil {
 		if errors.Is(err, service.ErrProductNotFound) {
-			response := model.Response{Message: "Produto não encontrado na base de dados."}
+			response := response.Message{Message: "Produto não encontrado na base de dados."}
 			ctx.JSON(http.StatusNotFound, response)
 			return
 		}
 
-		response := model.Response{Message: "Erro ao buscar produto."}
+		response := response.Message{Message: "Erro ao buscar produto."}
 		ctx.JSON(http.StatusInternalServerError, response)
 		return
 	}
@@ -94,10 +95,10 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 
 	if err := p.productService.UpdateProduct(product); err != nil {
 		if errors.Is(err, service.ErrProductNotFound) {
-			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
+			ctx.JSON(http.StatusNotFound, response.Message{Message: "Produto não encontrado na base de dados."})
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, model.Response{Message: "Erro ao atualizar produto."})
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao atualizar produto."})
 		return
 	}
 
@@ -112,10 +113,10 @@ func (p *ProductController) DeleteProduct(ctx *gin.Context) {
 
 	if err := p.productService.DeleteProduct(productID); err != nil {
 		if errors.Is(err, service.ErrProductNotFound) {
-			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
+			ctx.JSON(http.StatusNotFound, response.Message{Message: "Produto não encontrado na base de dados."})
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, model.Response{Message: "Erro ao excluir produto."})
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao excluir produto."})
 		return
 	}
 
@@ -125,13 +126,13 @@ func (p *ProductController) DeleteProduct(ctx *gin.Context) {
 func productIDFromContext(ctx *gin.Context) (int, bool) {
 	id := ctx.Param("productId")
 	if id == "" {
-		ctx.JSON(http.StatusBadRequest, model.Response{Message: "Id do produto não pode ser nulo."})
+		ctx.JSON(http.StatusBadRequest, response.Message{Message: "Id do produto não pode ser nulo."})
 		return 0, false
 	}
 
 	productID, err := strconv.Atoi(id)
 	if err != nil || productID <= 0 {
-		ctx.JSON(http.StatusBadRequest, model.Response{Message: "Id do produto inválido."})
+		ctx.JSON(http.StatusBadRequest, response.Message{Message: "Id do produto inválido."})
 		return 0, false
 	}
 	return productID, true

@@ -183,12 +183,12 @@ go test ./...
 Para gerar o relatório de cobertura dos pacotes com testes:
 
 ```powershell
-go test -coverprofile=coverage.out -covermode=atomic ./cmd ./controller ./repository ./service ./usecase ./db
+go test -coverprofile=coverage.out -covermode=atomic ./cmd ./controller ./repository ./response ./service ./usecase ./db
 go tool cover -func=coverage.out
 ```
 
 O perfil atual cobre 100% das instruções dos pacotes da aplicação:
-`cmd`, `controller`, `db`, `repository`, `service` e `usecase`.
+`cmd`, `controller`, `db`, `repository`, `response`, `service` e `usecase`.
 
 ## Estrutura do projeto
 
@@ -197,8 +197,9 @@ O perfil atual cobre 100% das instruções dos pacotes da aplicação:
 ├── cmd/             # Inicialização da aplicação e rotas
 ├── controller/      # Handlers HTTP
 ├── db/              # Conexão com o PostgreSQL
-├── model/           # Modelos e respostas da API
+├── model/           # Modelos de domínio
 ├── repository/      # Acesso aos dados
+├── response/        # DTOs das respostas HTTP
 ├── service/         # Orquestração dos serviços da aplicação
 ├── usecase/         # Regras de negócio
 ├── Dockerfile       # Build da imagem da API
