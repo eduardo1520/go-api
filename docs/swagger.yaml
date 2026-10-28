@@ -1,0 +1,226 @@
+basePath: /
+definitions:
+  dto.ProductRequest:
+    properties:
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      price:
+        type: number
+    required:
+    - name
+    - price
+    type: object
+  response.Message:
+    properties:
+      message:
+        type: string
+    type: object
+  response.Product:
+    properties:
+      id_product:
+        type: integer
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: API REST de produtos desenvolvida em Go com Gin e PostgreSQL.
+  title: Go API
+  version: "1.0"
+paths:
+  /ping:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Verifica o serviço
+      tags:
+      - health
+  /products:
+    get:
+      description: Retorna todos os produtos cadastrados.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/response.Product'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Lista produtos
+      tags:
+      - products
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Dados do produto
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Cria um produto
+      tags:
+      - products
+  /products/{productId}:
+    delete:
+      parameters:
+      - description: ID do produto
+        in: path
+        name: productId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Message'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Exclui um produto
+      tags:
+      - products
+    get:
+      parameters:
+      - description: ID do produto
+        in: path
+        name: productId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Message'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Busca produto por ID
+      tags:
+      - products
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID do produto
+        in: path
+        name: productId
+        required: true
+        type: integer
+      - description: Dados atualizados do produto
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Message'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Atualiza um produto
+      tags:
+      - products
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID do produto
+        in: path
+        name: productId
+        required: true
+        type: integer
+      - description: Dados atualizados do produto
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Message'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Message'
+      summary: Atualiza um produto
+      tags:
+      - products
+swagger: "2.0"

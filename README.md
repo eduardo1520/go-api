@@ -10,6 +10,7 @@ Compose.
 - PostgreSQL 15.3
 - Docker e Docker Compose
 - `github.com/lib/pq`
+- `swaggo/gin-swagger`
 
 ## Requisitos
 
@@ -78,6 +79,19 @@ go run .\cmd\main.go
 Ao executar a API diretamente no Windows, a conexão usa `localhost:5433`.
 
 ## Endpoints
+
+### Swagger
+
+Com a API em execução, acesse a documentação interativa em:
+
+`http://localhost:8000/swagger/index.html`
+
+Para regenerar os arquivos da documentação após alterar as anotações:
+
+```powershell
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init -g .\cmd\main.go -o .\docs
+```
 
 ### Verificar o serviço
 
@@ -169,7 +183,7 @@ Resposta: `204 No Content`.
 - [x] Adicionar testes unitários, de integração e dos endpoints da API.
 - [x] Refatorar a arquitetura para melhorar a separação de responsabilidades,
   a testabilidade e a manutenção do projeto.
-- [ ] Documentar e disponibilizar as rotas na web usando Swagger/OpenAPI,
+- [x] Documentar e disponibilizar as rotas na web usando Swagger/OpenAPI,
   incluindo exemplos de requisições e respostas.
 
 ## Testes
@@ -201,6 +215,7 @@ requisição.
 ├── cmd/             # Inicialização da aplicação e rotas
 ├── controller/      # Handlers HTTP
 ├── db/              # Conexão com o PostgreSQL
+├── docs/            # Documentação Swagger gerada
 ├── dto/             # DTOs de entrada e validação dos payloads
 ├── model/           # Modelos de domínio
 ├── repository/      # Acesso aos dados

@@ -22,6 +22,14 @@ func NewProductController(productService service.ProductService) *ProductControl
 	}
 }
 
+// GetProducts godoc
+// @Summary Lista produtos
+// @Description Retorna todos os produtos cadastrados.
+// @Tags products
+// @Produce json
+// @Success 200 {array} response.Product
+// @Failure 500 {object} response.Message
+// @Router /products [get]
 func (p *ProductController) GetProducts(ctx *gin.Context) {
 	products, err := p.productService.GetProducts()
 	if err != nil {
@@ -31,6 +39,16 @@ func (p *ProductController) GetProducts(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, productResponses(products))
 }
 
+// GetProductById godoc
+// @Summary Busca produto por ID
+// @Tags products
+// @Produce json
+// @Param productId path int true "ID do produto"
+// @Success 200 {object} response.Product
+// @Failure 400 {object} response.Message
+// @Failure 404 {object} response.Message
+// @Failure 500 {object} response.Message
+// @Router /products/{productId} [get]
 func (p *ProductController) GetProductById(ctx *gin.Context) {
 	id := ctx.Param("productId")
 	if id == "" {
@@ -63,6 +81,16 @@ func (p *ProductController) GetProductById(ctx *gin.Context) {
 
 }
 
+// CreateProduct godoc
+// @Summary Cria um produto
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param product body dto.ProductRequest true "Dados do produto"
+// @Success 201 {object} response.Product
+// @Failure 400 {object} response.Message
+// @Failure 500 {object} response.Message
+// @Router /products [post]
 func (p *ProductController) CreateProduct(ctx *gin.Context) {
 	var request dto.ProductRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -79,6 +107,19 @@ func (p *ProductController) CreateProduct(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, productResponse(insertedProduct))
 }
 
+// UpdateProduct godoc
+// @Summary Atualiza um produto
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param productId path int true "ID do produto"
+// @Param product body dto.ProductRequest true "Dados atualizados do produto"
+// @Success 200 {object} response.Product
+// @Failure 400 {object} response.Message
+// @Failure 404 {object} response.Message
+// @Failure 500 {object} response.Message
+// @Router /products/{productId} [put]
+// @Router /products/{productId} [patch]
 func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	productID, valid := productIDFromContext(ctx)
 	if !valid {
@@ -105,6 +146,16 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, productResponse(product))
 }
 
+// DeleteProduct godoc
+// @Summary Exclui um produto
+// @Tags products
+// @Produce json
+// @Param productId path int true "ID do produto"
+// @Success 204
+// @Failure 400 {object} response.Message
+// @Failure 404 {object} response.Message
+// @Failure 500 {object} response.Message
+// @Router /products/{productId} [delete]
 func (p *ProductController) DeleteProduct(ctx *gin.Context) {
 	productID, valid := productIDFromContext(ctx)
 	if !valid {

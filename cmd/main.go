@@ -9,7 +9,16 @@ import (
 	"go-api/usecase"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "go-api/docs"
 )
+
+// @title Go API
+// @version 1.0
+// @description API REST de produtos desenvolvida em Go com Gin e PostgreSQL.
+// @host localhost:8000
+// @BasePath /
 
 var connectDB = db.ConnectDB
 var runServer = func(server *gin.Engine) error {
@@ -43,11 +52,8 @@ func newServer() (*gin.Engine, error) {
 	ProductService := service.NewProductService(*ProductUseCase)
 	ProductController := controller.NewProductController(ProductService)
 
-	server.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	server.GET("/ping", ping)
+	server.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	server.GET("/products", ProductController.GetProducts)
 	server.GET("/products/:productId", ProductController.GetProductById)
@@ -57,4 +63,14 @@ func newServer() (*gin.Engine, error) {
 	server.DELETE("/products/:productId", ProductController.DeleteProduct)
 
 	return server, nil
+}
+
+// ping godoc
+// @Summary Verifica o serviço
+// @Tags health
+// @Produce json
+// @Success 200 {object} response.Message
+// @Router /ping [get]
+func ping(c *gin.Context) {
+	c.JSON(200, gin.H{"message": "pong"})
 }
