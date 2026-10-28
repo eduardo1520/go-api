@@ -14,6 +14,8 @@ const (
 	productsQuery = "SELECT id, product_name, price FROM product"
 	productQuery  = "SELECT id, product_name, price FROM product WHERE id = $1"
 	insertQuery   = "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+	updateQuery   = "UPDATE product SET product_name = $1, price = $2 WHERE id = $3"
+	deleteQuery   = "DELETE FROM product WHERE id = $1"
 )
 
 func setupRepository(t *testing.T) (*ProductRepository, sqlmock.Sqlmock) {
@@ -184,6 +186,7 @@ func TestGetProductByIDExternalTransaction(t *testing.T) {
 		{"not found", nil, sqlmock.NewRows([]string{"id", "product_name", "price"}), ErrProductNotFound},
 		{"query error", sql.ErrConnDone, nil, sql.ErrConnDone},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo, mock := setupRepository(t)
@@ -223,6 +226,7 @@ func TestGetProductByIDOwnedTransaction(t *testing.T) {
 		{"scan error", nil, nil, sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow("bad", "Mouse", 10), nil, nil, true},
 		{"commit error", nil, nil, sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10), nil, sql.ErrTxDone, true},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo, mock := setupOwnedRepository(t)
@@ -345,6 +349,164 @@ func TestCreateProductOwnedTransaction(t *testing.T) {
 			}
 			if !test.wantErr && (err != nil || id != 1) {
 				t.Fatalf("unexpected result: id=%d err=%v", id, err)
+			}
+		})
+	}
+}
+
+func TestUpdateProductExternalTransaction(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		rows int64
+	}{
+		{"success", nil, 1}, {"exec error", sql.ErrConnDone, 0}, {"not found", nil, 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock := setupRepository(t)
+			expectation := mock.ExpectExec(regexp.QuoteMeta(updateQuery)).WithArgs("Mouse", 10.0, 1)
+			if test.err != nil {
+				expectation.WillReturnError(test.err)
+			} else {
+				expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+			}
+			err := repo.UpdateProduct(model.Product{ID: 1, Name: "Mouse", Price: 10})
+			if test.name == "success" && err != nil {
+				t.Fatal(err)
+			}
+			if test.name != "success" && err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestDeleteProductExternalTransaction(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		rows int64
+	}{
+		{"success", nil, 1}, {"exec error", sql.ErrConnDone, 0}, {"not found", nil, 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock := setupRepository(t)
+			expectation := mock.ExpectExec(regexp.QuoteMeta(deleteQuery)).WithArgs(1)
+			if test.err != nil {
+				expectation.WillReturnError(test.err)
+			} else {
+				expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+			}
+			err := repo.DeleteProduct(1)
+			if test.name == "success" && err != nil {
+				t.Fatal(err)
+			}
+			if test.name != "success" && err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestUpdateProductOwnedTransaction(t *testing.T) {
+	tests := []struct {
+		name      string
+		beginErr  error
+		execErr   error
+		resultErr error
+		rows      int64
+		commitErr error
+		wantErr   bool
+	}{
+		{"success", nil, nil, nil, 1, nil, false},
+		{"begin error", sql.ErrConnDone, nil, nil, 0, nil, true},
+		{"exec error", nil, sql.ErrConnDone, nil, 0, nil, true},
+		{"rows affected error", nil, nil, sql.ErrConnDone, 0, nil, true},
+		{"not found", nil, nil, nil, 0, nil, true},
+		{"commit error", nil, nil, nil, 1, sql.ErrTxDone, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock := setupOwnedRepository(t)
+			if test.beginErr != nil {
+				mock.ExpectBegin().WillReturnError(test.beginErr)
+			} else {
+				mock.ExpectBegin()
+				expectation := mock.ExpectExec(regexp.QuoteMeta(updateQuery)).WithArgs("Mouse", 10.0, 1)
+				switch {
+				case test.execErr != nil:
+					expectation.WillReturnError(test.execErr)
+					mock.ExpectRollback()
+				case test.resultErr != nil:
+					expectation.WillReturnResult(sqlmock.NewErrorResult(test.resultErr))
+					mock.ExpectRollback()
+				default:
+					expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+					if test.commitErr != nil {
+						mock.ExpectCommit().WillReturnError(test.commitErr)
+					} else if test.wantErr {
+						mock.ExpectRollback()
+					} else {
+						mock.ExpectCommit()
+					}
+				}
+			}
+			err := repo.UpdateProduct(model.Product{ID: 1, Name: "Mouse", Price: 10})
+			if test.wantErr != (err != nil) {
+				t.Fatalf("expected error=%t, got %v", test.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestDeleteProductOwnedTransaction(t *testing.T) {
+	tests := []struct {
+		name      string
+		beginErr  error
+		execErr   error
+		resultErr error
+		rows      int64
+		commitErr error
+		wantErr   bool
+	}{
+		{"success", nil, nil, nil, 1, nil, false},
+		{"begin error", sql.ErrConnDone, nil, nil, 0, nil, true},
+		{"exec error", nil, sql.ErrConnDone, nil, 0, nil, true},
+		{"rows affected error", nil, nil, sql.ErrConnDone, 0, nil, true},
+		{"not found", nil, nil, nil, 0, nil, true},
+		{"commit error", nil, nil, nil, 1, sql.ErrTxDone, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock := setupOwnedRepository(t)
+			if test.beginErr != nil {
+				mock.ExpectBegin().WillReturnError(test.beginErr)
+			} else {
+				mock.ExpectBegin()
+				expectation := mock.ExpectExec(regexp.QuoteMeta(deleteQuery)).WithArgs(1)
+				switch {
+				case test.execErr != nil:
+					expectation.WillReturnError(test.execErr)
+					mock.ExpectRollback()
+				case test.resultErr != nil:
+					expectation.WillReturnResult(sqlmock.NewErrorResult(test.resultErr))
+					mock.ExpectRollback()
+				default:
+					expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+					if test.commitErr != nil {
+						mock.ExpectCommit().WillReturnError(test.commitErr)
+					} else if test.wantErr {
+						mock.ExpectRollback()
+					} else {
+						mock.ExpectCommit()
+					}
+				}
+			}
+			err := repo.DeleteProduct(1)
+			if test.wantErr != (err != nil) {
+				t.Fatalf("expected error=%t, got %v", test.wantErr, err)
 			}
 		})
 	}

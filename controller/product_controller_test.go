@@ -37,6 +37,9 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock) {
 	router.GET("/products", controller.GetProducts)
 	router.GET("/products/:productId", controller.GetProductById)
 	router.POST("/products", controller.CreateProduct)
+	router.PUT("/products/:productId", controller.UpdateProduct)
+	router.PATCH("/products/:productId", controller.UpdateProduct)
+	router.DELETE("/products/:productId", controller.DeleteProduct)
 	t.Cleanup(func() { _ = db.Close() })
 	return router, mock
 }
@@ -132,6 +135,7 @@ func TestCreateProduct(t *testing.T) {
 		{"database error", `{"name":"Mouse","price":10}`, http.StatusInternalServerError, errors.New("insert failed")},
 		{"success", `{"name":"Mouse","price":10}`, http.StatusCreated, nil},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			router, mock := setupProductRouter(t)
@@ -153,5 +157,82 @@ func TestCreateProduct(t *testing.T) {
 				t.Fatalf("expected %d, got %d", test.code, response.Code)
 			}
 		})
+	}
+}
+
+func TestUpdateProduct(t *testing.T) {
+	tests := []struct {
+		name, path, body string
+		code             int
+		err              error
+		rows             int64
+	}{
+		{"invalid ID", "/products/nope", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
+		{"zero ID", "/products/0", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
+		{"invalid JSON", "/products/1", `{"name":`, http.StatusBadRequest, nil, 0},
+		{"not found", "/products/1", `{"name":"Mouse","price":10}`, http.StatusNotFound, nil, 0},
+		{"database error", "/products/1", `{"name":"Mouse","price":10}`, http.StatusInternalServerError, errors.New("update failed"), 0},
+		{"success", "/products/1", `{"name":"Mouse","price":10}`, http.StatusOK, nil, 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router, mock := setupProductRouter(t)
+			if test.path != "/products/nope" && test.path != "/products/0" && test.body != `{"name":` {
+				expectation := mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).WithArgs("Mouse", 10.0, 1)
+				if test.err != nil {
+					expectation.WillReturnError(test.err)
+				} else {
+					expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+				}
+			}
+			request := httptest.NewRequest(http.MethodPut, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != test.code {
+				t.Fatalf("expected %d, got %d: %s", test.code, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestDeleteProduct(t *testing.T) {
+	tests := []struct {
+		name, path string
+		code       int
+		err        error
+		rows       int64
+	}{
+		{"invalid ID", "/products/nope", http.StatusBadRequest, nil, 0}, {"not found", "/products/1", http.StatusNotFound, nil, 0},
+		{"database error", "/products/1", http.StatusInternalServerError, errors.New("delete failed"), 0}, {"success", "/products/1", http.StatusNoContent, nil, 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router, mock := setupProductRouter(t)
+			if test.path != "/products/nope" {
+				expectation := mock.ExpectExec(regexp.QuoteMeta("DELETE FROM product WHERE id = $1")).WithArgs(1)
+				if test.err != nil {
+					expectation.WillReturnError(test.err)
+				} else {
+					expectation.WillReturnResult(sqlmock.NewResult(0, test.rows))
+				}
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, test.path, nil))
+			if response.Code != test.code {
+				t.Fatalf("expected %d, got %d: %s", test.code, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestUpdateProductRejectsEmptyID(t *testing.T) {
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Params = gin.Params{{Key: "productId", Value: ""}}
+	NewProductController(usecase.ProductUseCase{}).UpdateProduct(context)
+
+	if context.Writer.Status() != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", context.Writer.Status())
 	}
 }

@@ -79,3 +79,61 @@ func (p *ProductController) CreateProduct(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, insertedProduct)
 }
+
+func (p *ProductController) UpdateProduct(ctx *gin.Context) {
+	productID, valid := productIDFromContext(ctx)
+	if !valid {
+		return
+	}
+
+	var product model.Product
+	if err := ctx.BindJSON(&product); err != nil {
+		ctx.JSON(http.StatusBadRequest, err)
+		return
+	}
+	product.ID = productID
+
+	if err := p.productUseCase.UpdateProduct(product); err != nil {
+		if errors.Is(err, repository.ErrProductNotFound) {
+			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, model.Response{Message: "Erro ao atualizar produto."})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, product)
+}
+
+func (p *ProductController) DeleteProduct(ctx *gin.Context) {
+	productID, valid := productIDFromContext(ctx)
+	if !valid {
+		return
+	}
+
+	if err := p.productUseCase.DeleteProduct(productID); err != nil {
+		if errors.Is(err, repository.ErrProductNotFound) {
+			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, model.Response{Message: "Erro ao excluir produto."})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func productIDFromContext(ctx *gin.Context) (int, bool) {
+	id := ctx.Param("productId")
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, model.Response{Message: "Id do produto não pode ser nulo."})
+		return 0, false
+	}
+
+	productID, err := strconv.Atoi(id)
+	if err != nil || productID <= 0 {
+		ctx.JSON(http.StatusBadRequest, model.Response{Message: "Id do produto inválido."})
+		return 0, false
+	}
+	return productID, true
+}

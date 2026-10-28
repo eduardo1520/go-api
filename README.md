@@ -135,9 +135,36 @@ Corpo:
 
 Resposta: `201 Created`.
 
+### Atualizar produto
+
+```http
+PUT /products/:productId
+PATCH /products/:productId
+Content-Type: application/json
+```
+
+Corpo:
+
+```json
+{
+  "name": "Teclado mecânico",
+  "price": 249.90
+}
+```
+
+Resposta: `200 OK` com o produto atualizado.
+
+### Excluir produto
+
+```http
+DELETE /products/:productId
+```
+
+Resposta: `204 No Content`.
+
 ## Próximas atividades
 
-- [ ] Finalizar o CRUD de produtos, adicionando operações de atualização
+- [x] Finalizar o CRUD de produtos, adicionando operações de atualização
   (`PUT`/`PATCH`) e exclusão (`DELETE`).
 - [x] Adicionar testes unitários, de integração e dos endpoints da API.
 - [ ] Refatorar a arquitetura para melhorar a separação de responsabilidades,

@@ -109,3 +109,23 @@ func TestGetProductByIDReturnsRepositoryError(t *testing.T) {
 		t.Fatalf("expected repository error, got product=%+v err=%v", product, err)
 	}
 }
+
+func TestUpdateProductDelegatesToRepository(t *testing.T) {
+	useCase, mock := setupUseCase(t)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).
+		WithArgs("Mouse", 10.0, 4).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := useCase.UpdateProduct(model.Product{ID: 4, Name: "Mouse", Price: 10}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteProductReturnsRepositoryError(t *testing.T) {
+	useCase, mock := setupUseCase(t)
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM product WHERE id = $1")).
+		WithArgs(4).WillReturnError(errors.New("delete failed"))
+
+	if err := useCase.DeleteProduct(4); err == nil {
+		t.Fatal("expected repository error")
+	}
+}
