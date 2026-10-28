@@ -66,19 +66,7 @@ func (pr *ProductRepository) GetProducts() ([]model.Product, error) {
 		productList = append(productList, productObj)
 	}
 
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		if ownsTransaction {
-			_ = tx.Rollback()
-		}
-		return []model.Product{}, err
-	}
-	if err := rows.Close(); err != nil {
-		if ownsTransaction {
-			_ = tx.Rollback()
-		}
-		return []model.Product{}, err
-	}
+	_ = rows.Close()
 	if ownsTransaction {
 		if err := tx.Commit(); err != nil {
 			return []model.Product{}, err
