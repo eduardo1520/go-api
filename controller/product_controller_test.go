@@ -11,6 +11,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
 	"go-api/repository"
+	"go-api/service"
 	"go-api/usecase"
 )
 
@@ -31,7 +32,7 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock) {
 			t.Errorf("unmet SQL expectations: %v", err)
 		}
 	})
-	controller := NewProductController(*usecase.NewProductUseCase(*repository.NewProductRepositoryWithTransaction(transaction)))
+	controller := NewProductController(service.NewProductService(*usecase.NewProductUseCase(*repository.NewProductRepositoryWithTransaction(transaction))))
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/products", controller.GetProducts)
@@ -117,7 +118,7 @@ func TestGetProductByID(t *testing.T) {
 func TestGetProductByIDReturnsBadRequestForEmptyID(t *testing.T) {
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
 	context.Params = gin.Params{{Key: "productId", Value: ""}}
-	NewProductController(usecase.ProductUseCase{}).GetProductById(context)
+	NewProductController(service.NewProductService(usecase.ProductUseCase{})).GetProductById(context)
 
 	if context.Writer.Status() != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", context.Writer.Status())
@@ -230,7 +231,7 @@ func TestDeleteProduct(t *testing.T) {
 func TestUpdateProductRejectsEmptyID(t *testing.T) {
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
 	context.Params = gin.Params{{Key: "productId", Value: ""}}
-	NewProductController(usecase.ProductUseCase{}).UpdateProduct(context)
+	NewProductController(service.NewProductService(usecase.ProductUseCase{})).UpdateProduct(context)
 
 	if context.Writer.Status() != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", context.Writer.Status())

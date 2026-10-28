@@ -4,7 +4,7 @@ import (
 	"errors"
 	"go-api/model"
 	"go-api/repository"
-	"go-api/usecase"
+	"go-api/service"
 	"net/http"
 	"strconv"
 
@@ -12,17 +12,17 @@ import (
 )
 
 type ProductController struct {
-	productUseCase usecase.ProductUseCase
+	productService service.ProductService
 }
 
-func NewProductController(useCase usecase.ProductUseCase) *ProductController {
+func NewProductController(productService service.ProductService) *ProductController {
 	return &ProductController{
-		productUseCase: useCase,
+		productService: productService,
 	}
 }
 
 func (p *ProductController) GetProducts(ctx *gin.Context) {
-	products, err := p.productUseCase.GetProducts()
+	products, err := p.productService.GetProducts()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, err)
 		return
@@ -45,7 +45,7 @@ func (p *ProductController) GetProductById(ctx *gin.Context) {
 		return
 	}
 
-	product, err := p.productUseCase.GetProductById(productId)
+	product, err := p.productService.GetProductById(productId)
 	if err != nil {
 		if errors.Is(err, repository.ErrProductNotFound) {
 			response := model.Response{Message: "Produto não encontrado na base de dados."}
@@ -71,7 +71,7 @@ func (p *ProductController) CreateProduct(ctx *gin.Context) {
 		return
 	}
 
-	insertedProduct, err := p.productUseCase.CreateProduct(product)
+	insertedProduct, err := p.productService.CreateProduct(product)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, err)
 		return
@@ -93,7 +93,7 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	}
 	product.ID = productID
 
-	if err := p.productUseCase.UpdateProduct(product); err != nil {
+	if err := p.productService.UpdateProduct(product); err != nil {
 		if errors.Is(err, repository.ErrProductNotFound) {
 			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
 			return
@@ -111,7 +111,7 @@ func (p *ProductController) DeleteProduct(ctx *gin.Context) {
 		return
 	}
 
-	if err := p.productUseCase.DeleteProduct(productID); err != nil {
+	if err := p.productService.DeleteProduct(productID); err != nil {
 		if errors.Is(err, repository.ErrProductNotFound) {
 			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
 			return
