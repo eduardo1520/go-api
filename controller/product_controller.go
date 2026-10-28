@@ -119,7 +119,6 @@ func (p *ProductController) CreateProduct(ctx *gin.Context) {
 // @Failure 404 {object} response.Message
 // @Failure 500 {object} response.Message
 // @Router /products/{productId} [put]
-// @Router /products/{productId} [patch]
 func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	productID, valid := productIDFromContext(ctx)
 	if !valid {
@@ -144,6 +143,60 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, productResponse(product))
+}
+
+// PatchProduct godoc
+// @Summary Atualiza parcialmente um produto
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param productId path int true "ID do produto"
+// @Param product body dto.ProductPatchRequest true "Campos a atualizar"
+// @Success 200 {object} response.Product
+// @Failure 400 {object} response.Message
+// @Failure 404 {object} response.Message
+// @Failure 500 {object} response.Message
+// @Router /products/{productId} [patch]
+func (p *ProductController) PatchProduct(ctx *gin.Context) {
+	productID, valid := productIDFromContext(ctx)
+	if !valid {
+		return
+	}
+
+	var request dto.ProductPatchRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil ||
+		(request.Name == nil && request.Price == nil) {
+		ctx.JSON(http.StatusBadRequest, response.Message{Message: "Dados do produto inválidos."})
+		return
+	}
+
+	product, err := p.productService.GetProductById(productID)
+	if err != nil {
+		if errors.Is(err, service.ErrProductNotFound) {
+			ctx.JSON(http.StatusNotFound, response.Message{Message: "Produto não encontrado na base de dados."})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao buscar produto."})
+		return
+	}
+
+	if request.Name != nil {
+		product.Name = *request.Name
+	}
+	if request.Price != nil {
+		product.Price = *request.Price
+	}
+
+	if err := p.productService.UpdateProduct(*product); err != nil {
+		if errors.Is(err, service.ErrProductNotFound) {
+			ctx.JSON(http.StatusNotFound, response.Message{Message: "Produto não encontrado na base de dados."})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao atualizar produto."})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, productResponse(*product))
 }
 
 // DeleteProduct godoc
@@ -194,7 +247,7 @@ func productFromRequest(request dto.ProductRequest) model.Product {
 }
 
 func productResponse(product model.Product) response.Product {
-	return response.Product{ID: product.ID, Name: product.Name, Price: product.Price}
+	return response.Product{ID: product.ID, Name: product.Name, Price: response.FormatPrice(product.Price)}
 }
 
 func productResponses(products []model.Product) []response.Product {

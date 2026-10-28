@@ -10,6 +10,7 @@ Compose.
 - PostgreSQL 15.3
 - Docker e Docker Compose
 - `github.com/lib/pq`
+- `github.com/Masterminds/squirrel`
 - `swaggo/gin-swagger`
 
 ## Requisitos
@@ -24,6 +25,9 @@ Na raiz do projeto, execute:
 ```powershell
 docker compose up -d --build
 ```
+
+O `--build` é necessário após alterar o código da API; sem ele, o
+container pode continuar executando uma imagem antiga sem a rota do Swagger.
 
 Verifique o status dos serviços:
 
@@ -77,6 +81,14 @@ go run .\cmd\main.go
 ```
 
 Ao executar a API diretamente no Windows, a conexão usa `localhost:5433`.
+Não use `go run main.go` na raiz: o ponto de entrada está em `cmd\main.go`.
+
+Se a API já estiver em execução em um container, recrie-o para carregar o
+binário atualizado:
+
+```powershell
+docker compose up -d --build --force-recreate go-app
+```
 
 ## Endpoints
 
@@ -149,11 +161,13 @@ Corpo:
 
 Resposta: `201 Created`.
 
+O preço é enviado como número e retornado como texto com duas casas
+decimais, por exemplo: `"price": "149.90"`.
+
 ### Atualizar produto
 
 ```http
 PUT /products/:productId
-PATCH /products/:productId
 Content-Type: application/json
 ```
 
@@ -167,6 +181,37 @@ Corpo:
 ```
 
 Resposta: `200 OK` com o produto atualizado.
+
+Para atualização parcial, use `PATCH`. É possível enviar somente os campos
+que devem ser alterados:
+
+```http
+PATCH /products/:productId
+Content-Type: application/json
+```
+
+```json
+{
+  "price": 80.50
+}
+```
+
+O campo `name` também pode ser enviado isoladamente. O corpo não pode ser
+vazio.
+
+Resposta:
+
+```json
+{
+  "id_product": 1,
+  "name": "Teclado mecânico",
+  "price": "80.50"
+}
+```
+
+O preço é retornado como texto com duas casas decimais para preservar o
+formato monetário. Na requisição, ele continua sendo enviado como número
+JSON, usando ponto como separador decimal.
 
 ### Excluir produto
 

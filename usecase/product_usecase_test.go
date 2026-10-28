@@ -57,7 +57,7 @@ func TestGetProductsReturnsRepositoryError(t *testing.T) {
 func TestCreateProductAssignsGeneratedID(t *testing.T) {
 	useCase, mock := setupUseCase(t)
 
-	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+	query := "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(4))
@@ -71,7 +71,7 @@ func TestCreateProductAssignsGeneratedID(t *testing.T) {
 func TestCreateProductReturnsRepositoryError(t *testing.T) {
 	useCase, mock := setupUseCase(t)
 
-	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+	query := "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0).
 		WillReturnError(errors.New("insert failed"))

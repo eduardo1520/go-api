@@ -59,7 +59,7 @@ func newServer() (*gin.Engine, error) {
 	server.GET("/products/:productId", ProductController.GetProductById)
 	server.POST("/products", ProductController.CreateProduct)
 	server.PUT("/products/:productId", ProductController.UpdateProduct)
-	server.PATCH("/products/:productId", ProductController.UpdateProduct)
+	server.PATCH("/products/:productId", ProductController.PatchProduct)
 	server.DELETE("/products/:productId", ProductController.DeleteProduct)
 
 	return server, nil

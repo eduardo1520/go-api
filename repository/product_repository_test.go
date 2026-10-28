@@ -13,7 +13,7 @@ import (
 const (
 	productsQuery = "SELECT id, product_name, price FROM product"
 	productQuery  = "SELECT id, product_name, price FROM product WHERE id = $1"
-	insertQuery   = "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+	insertQuery   = "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 	updateQuery   = "UPDATE product SET product_name = $1, price = $2 WHERE id = $3"
 	deleteQuery   = "DELETE FROM product WHERE id = $1"
 )

@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"go-api/model"
+
+	sq "github.com/Masterminds/squirrel"
 )
 
 var ErrProductNotFound = errors.New("product not found")
+var queryBuilder = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 type ProductRepository struct {
 	connection  *sql.DB
@@ -40,8 +43,18 @@ func (pr *ProductRepository) GetProducts() ([]model.Product, error) {
 		return []model.Product{}, err
 	}
 
-	query := "SELECT id, product_name, price FROM product"
-	rows, err := tx.Query(query)
+	query, args, err := queryBuilder.
+		Select("id", "product_name", "price").
+		From("product").
+		ToSql()
+	if err != nil {
+		if ownsTransaction {
+			_ = tx.Rollback()
+		}
+		return []model.Product{}, err
+	}
+
+	rows, err := tx.Query(query, args...)
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -83,9 +96,12 @@ func (pr *ProductRepository) CreateProduct(product model.Product) (int, error) {
 	}
 
 	var id int
-	query, err := tx.Prepare("INSERT INTO product" +
-		" (product_name, price)" +
-		" VALUES($1, $2) RETURNING id")
+	query, args, err := queryBuilder.
+		Insert("product").
+		Columns("product_name", "price").
+		Values(product.Name, product.Price).
+		Suffix("RETURNING id").
+		ToSql()
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -93,9 +109,16 @@ func (pr *ProductRepository) CreateProduct(product model.Product) (int, error) {
 		fmt.Println(err)
 		return 0, err
 	}
-	defer query.Close()
+	statement, err := tx.Prepare(query)
+	if err != nil {
+		if ownsTransaction {
+			_ = tx.Rollback()
+		}
+		return 0, err
+	}
+	defer statement.Close()
 
-	err = query.QueryRow(product.Name, product.Price).Scan(&id)
+	err = statement.QueryRow(args...).Scan(&id)
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -118,7 +141,11 @@ func (pr *ProductRepository) GetProductById(id_product int) (*model.Product, err
 		return nil, err
 	}
 
-	query, err := tx.Prepare("SELECT id, product_name, price FROM product WHERE id = $1")
+	query, args, err := queryBuilder.
+		Select("id", "product_name", "price").
+		From("product").
+		Where(sq.Eq{"id": id_product}).
+		ToSql()
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -126,10 +153,18 @@ func (pr *ProductRepository) GetProductById(id_product int) (*model.Product, err
 		fmt.Println(err)
 		return nil, err
 	}
-	defer query.Close()
 
 	var product model.Product
-	err = query.QueryRow(id_product).Scan(&product.ID, &product.Name, &product.Price)
+	statement, err := tx.Prepare(query)
+	if err != nil {
+		if ownsTransaction {
+			_ = tx.Rollback()
+		}
+		return nil, err
+	}
+	defer statement.Close()
+
+	err = statement.QueryRow(args...).Scan(&product.ID, &product.Name, &product.Price)
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -153,7 +188,20 @@ func (pr *ProductRepository) UpdateProduct(product model.Product) error {
 		return err
 	}
 
-	result, err := tx.Exec("UPDATE product SET product_name = $1, price = $2 WHERE id = $3", product.Name, product.Price, product.ID)
+	query, args, err := queryBuilder.
+		Update("product").
+		Set("product_name", product.Name).
+		Set("price", product.Price).
+		Where(sq.Eq{"id": product.ID}).
+		ToSql()
+	if err != nil {
+		if ownsTransaction {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+
+	result, err := tx.Exec(query, args...)
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()
@@ -189,7 +237,18 @@ func (pr *ProductRepository) DeleteProduct(id int) error {
 		return err
 	}
 
-	result, err := tx.Exec("DELETE FROM product WHERE id = $1", id)
+	query, args, err := queryBuilder.
+		Delete("product").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		if ownsTransaction {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+
+	result, err := tx.Exec(query, args...)
 	if err != nil {
 		if ownsTransaction {
 			_ = tx.Rollback()

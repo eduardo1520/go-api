@@ -1,5 +1,14 @@
 basePath: /
 definitions:
+  dto.ProductPatchRequest:
+    properties:
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      price:
+        type: number
+    type: object
   dto.ProductRequest:
     properties:
       name:
@@ -24,7 +33,7 @@ definitions:
       name:
         type: string
       price:
-        type: number
+        type: string
     type: object
 host: localhost:8000
 info:
@@ -158,12 +167,12 @@ paths:
         name: productId
         required: true
         type: integer
-      - description: Dados atualizados do produto
+      - description: Campos a atualizar
         in: body
         name: product
         required: true
         schema:
-          $ref: '#/definitions/dto.ProductRequest'
+          $ref: '#/definitions/dto.ProductPatchRequest'
       produces:
       - application/json
       responses:
@@ -183,7 +192,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Message'
-      summary: Atualiza um produto
+      summary: Atualiza parcialmente um produto
       tags:
       - products
     put:

@@ -39,7 +39,7 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock) {
 	router.GET("/products/:productId", controller.GetProductById)
 	router.POST("/products", controller.CreateProduct)
 	router.PUT("/products/:productId", controller.UpdateProduct)
-	router.PATCH("/products/:productId", controller.UpdateProduct)
+	router.PATCH("/products/:productId", controller.PatchProduct)
 	router.DELETE("/products/:productId", controller.DeleteProduct)
 	t.Cleanup(func() { _ = db.Close() })
 	return router, mock
@@ -143,7 +143,7 @@ func TestCreateProduct(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			router, mock := setupProductRouter(t)
 			if test.err != nil || test.code == http.StatusCreated {
-				query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+				query := "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 				mock.ExpectPrepare(regexp.QuoteMeta(query))
 				expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0)
 				if test.err != nil {
@@ -169,21 +169,22 @@ func TestUpdateProduct(t *testing.T) {
 		code             int
 		err              error
 		rows             int64
+		price            float64
 	}{
-		{"invalid ID", "/products/nope", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
-		{"zero ID", "/products/0", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
-		{"invalid JSON", "/products/1", `{"name":`, http.StatusBadRequest, nil, 0},
-		{"invalid fields", "/products/1", `{}`, http.StatusBadRequest, nil, 0},
-		{"not found", "/products/1", `{"name":"Mouse","price":10}`, http.StatusNotFound, nil, 0},
-		{"database error", "/products/1", `{"name":"Mouse","price":10}`, http.StatusInternalServerError, errors.New("update failed"), 0},
-		{"success", "/products/1", `{"name":"Mouse","price":10}`, http.StatusOK, nil, 1},
+		{"invalid ID", "/products/nope", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0, 0},
+		{"zero ID", "/products/0", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0, 0},
+		{"invalid JSON", "/products/1", `{"name":`, http.StatusBadRequest, nil, 0, 0},
+		{"invalid fields", "/products/1", `{}`, http.StatusBadRequest, nil, 0, 0},
+		{"not found", "/products/1", `{"name":"Mouse","price":10}`, http.StatusNotFound, nil, 0, 10},
+		{"database error", "/products/1", `{"name":"Mouse","price":10.50}`, http.StatusInternalServerError, errors.New("update failed"), 0, 10.50},
+		{"success", "/products/1", `{"name":"Mouse","price":10.50}`, http.StatusOK, nil, 1, 10.50},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			router, mock := setupProductRouter(t)
 			if test.code != http.StatusBadRequest {
-				expectation := mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).WithArgs("Mouse", 10.0, 1)
+				expectation := mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).WithArgs("Mouse", test.price, 1)
 				if test.err != nil {
 					expectation.WillReturnError(test.err)
 				} else {
@@ -198,6 +199,33 @@ func TestUpdateProduct(t *testing.T) {
 				t.Fatalf("expected %d, got %d: %s", test.code, response.Code, response.Body.String())
 			}
 		})
+	}
+}
+
+func TestPatchProductWithOnlyPrice(t *testing.T) {
+	router, mock := setupProductRouter(t)
+
+	selectQuery := "SELECT id, product_name, price FROM product WHERE id = $1"
+	mock.ExpectPrepare(regexp.QuoteMeta(selectQuery))
+	mock.ExpectQuery(regexp.QuoteMeta(selectQuery)).
+		WithArgs(1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10.00))
+
+	updateQuery := "UPDATE product SET product_name = $1, price = $2 WHERE id = $3"
+	mock.ExpectExec(regexp.QuoteMeta(updateQuery)).
+		WithArgs("Mouse", 80.50, 1).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	request := httptest.NewRequest(http.MethodPatch, "/products/1", strings.NewReader(`{"price":80.50}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected %d, got %d: %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"price":"80.50"`) {
+		t.Fatalf("expected formatted price, got %s", response.Body.String())
 	}
 }
 

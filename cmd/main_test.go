@@ -32,6 +32,15 @@ func TestNewServer(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", response.Code)
 	}
+
+	response = httptest.NewRecorder()
+	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected Swagger status 200, got %d", response.Code)
+	}
+	if response.Header().Get("Content-Type") == "" {
+		t.Fatal("expected Swagger response content type")
+	}
 }
 
 func TestRunReturnsDatabaseError(t *testing.T) {

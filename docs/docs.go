@@ -258,7 +258,7 @@ const docTemplate = `{
                 "tags": [
                     "products"
                 ],
-                "summary": "Atualiza um produto",
+                "summary": "Atualiza parcialmente um produto",
                 "parameters": [
                     {
                         "type": "integer",
@@ -268,12 +268,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Dados atualizados do produto",
+                        "description": "Campos a atualizar",
                         "name": "product",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ProductRequest"
+                            "$ref": "#/definitions/dto.ProductPatchRequest"
                         }
                     }
                 ],
@@ -307,6 +307,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.ProductPatchRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
         "dto.ProductRequest": {
             "type": "object",
             "required": [
@@ -342,7 +355,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "price": {
-                    "type": "number"
+                    "type": "string"
                 }
             }
         }

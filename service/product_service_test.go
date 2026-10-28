@@ -49,7 +49,7 @@ func TestProductServiceDelegatesProductOperations(t *testing.T) {
 
 	t.Run("create product", func(t *testing.T) {
 		productService, mock := setupProductService(t)
-		query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+		query := "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 		mock.ExpectPrepare(regexp.QuoteMeta(query))
 		mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
@@ -108,7 +108,7 @@ func TestProductServicePropagatesErrors(t *testing.T) {
 
 	t.Run("create product", func(t *testing.T) {
 		productService, mock := setupProductService(t)
-		query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+		query := "INSERT INTO product (product_name,price) VALUES ($1,$2) RETURNING id"
 		mock.ExpectPrepare(regexp.QuoteMeta(query))
 		mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0).
 			WillReturnError(errors.New("insert failed"))
