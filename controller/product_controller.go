@@ -3,7 +3,6 @@ package controller
 import (
 	"errors"
 	"go-api/model"
-	"go-api/repository"
 	"go-api/service"
 	"net/http"
 	"strconv"
@@ -47,7 +46,7 @@ func (p *ProductController) GetProductById(ctx *gin.Context) {
 
 	product, err := p.productService.GetProductById(productId)
 	if err != nil {
-		if errors.Is(err, repository.ErrProductNotFound) {
+		if errors.Is(err, service.ErrProductNotFound) {
 			response := model.Response{Message: "Produto não encontrado na base de dados."}
 			ctx.JSON(http.StatusNotFound, response)
 			return
@@ -94,7 +93,7 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 	product.ID = productID
 
 	if err := p.productService.UpdateProduct(product); err != nil {
-		if errors.Is(err, repository.ErrProductNotFound) {
+		if errors.Is(err, service.ErrProductNotFound) {
 			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
 			return
 		}
@@ -112,7 +111,7 @@ func (p *ProductController) DeleteProduct(ctx *gin.Context) {
 	}
 
 	if err := p.productService.DeleteProduct(productID); err != nil {
-		if errors.Is(err, repository.ErrProductNotFound) {
+		if errors.Is(err, service.ErrProductNotFound) {
 			ctx.JSON(http.StatusNotFound, model.Response{Message: "Produto não encontrado na base de dados."})
 			return
 		}

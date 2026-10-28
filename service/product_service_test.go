@@ -103,6 +103,7 @@ func TestProductServicePropagatesErrors(t *testing.T) {
 		if _, err := productService.GetProducts(); err == nil {
 			t.Fatal("expected error")
 		}
+
 	})
 
 	t.Run("create product", func(t *testing.T) {
@@ -146,6 +147,40 @@ func TestProductServicePropagatesErrors(t *testing.T) {
 
 		if err := productService.DeleteProduct(2); err == nil {
 			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestProductServiceTranslatesNotFoundErrors(t *testing.T) {
+	t.Run("get product by id", func(t *testing.T) {
+		productService, mock := setupProductService(t)
+		query := "SELECT id, product_name, price FROM product WHERE id = $1"
+		mock.ExpectPrepare(regexp.QuoteMeta(query))
+		mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(2).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}))
+		_, err := productService.GetProductById(2)
+		if !errors.Is(err, ErrProductNotFound) {
+			t.Fatalf("expected service not found error, got %v", err)
+		}
+	})
+
+	t.Run("update product", func(t *testing.T) {
+		productService, mock := setupProductService(t)
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).
+			WithArgs("Mouse", 10.0, 2).WillReturnResult(sqlmock.NewResult(0, 0))
+		err := productService.UpdateProduct(model.Product{ID: 2, Name: "Mouse", Price: 10})
+		if !errors.Is(err, ErrProductNotFound) {
+			t.Fatalf("expected service not found error, got %v", err)
+		}
+	})
+
+	t.Run("delete product", func(t *testing.T) {
+		productService, mock := setupProductService(t)
+		mock.ExpectExec(regexp.QuoteMeta("DELETE FROM product WHERE id = $1")).
+			WithArgs(2).WillReturnResult(sqlmock.NewResult(0, 0))
+		err := productService.DeleteProduct(2)
+		if !errors.Is(err, ErrProductNotFound) {
+			t.Fatalf("expected service not found error, got %v", err)
 		}
 	})
 }
