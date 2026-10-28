@@ -20,7 +20,18 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller := NewProductController(*usecase.NewProductUseCase(*repository.NewProductRepository(db)))
+	mock.ExpectBegin()
+	transaction, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = transaction.Rollback()
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectations: %v", err)
+		}
+	})
+	controller := NewProductController(*usecase.NewProductUseCase(*repository.NewProductRepositoryWithTransaction(transaction)))
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/products", controller.GetProducts)

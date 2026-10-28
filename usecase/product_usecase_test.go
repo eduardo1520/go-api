@@ -16,14 +16,24 @@ func setupUseCase(t *testing.T) (*ProductUseCase, sqlmock.Sqlmock) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := repository.NewProductRepository(db)
-	t.Cleanup(func() { _ = db.Close() })
+	mock.ExpectBegin()
+	transaction, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = transaction.Rollback()
+		_ = db.Close()
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectations: %v", err)
+		}
+	})
+	repo := repository.NewProductRepositoryWithTransaction(transaction)
 	return NewProductUseCase(*repo), mock
 }
 
 func TestGetProductsDelegatesToRepository(t *testing.T) {
 	useCase, mock := setupUseCase(t)
-
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product")).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10))
 
@@ -31,14 +41,10 @@ func TestGetProductsDelegatesToRepository(t *testing.T) {
 	if err != nil || len(products) != 1 {
 		t.Fatalf("unexpected result: products=%+v err=%v", products, err)
 	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestGetProductsReturnsRepositoryError(t *testing.T) {
 	useCase, mock := setupUseCase(t)
-
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product")).
 		WillReturnError(errors.New("query failed"))
 

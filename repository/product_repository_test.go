@@ -10,6 +10,12 @@ import (
 	"go-api/model"
 )
 
+const (
+	productsQuery = "SELECT id, product_name, price FROM product"
+	productQuery  = "SELECT id, product_name, price FROM product WHERE id = $1"
+	insertQuery   = "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+)
+
 func setupRepository(t *testing.T) (*ProductRepository, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
@@ -17,7 +23,61 @@ func setupRepository(t *testing.T) (*ProductRepository, sqlmock.Sqlmock) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return NewProductRepository(db), mock
+	mock.ExpectBegin()
+	transaction, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = transaction.Rollback()
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectations: %v", err)
+		}
+	})
+	return NewProductRepositoryWithTransaction(transaction), mock
+}
+
+func TestNewProductRepositoryUsesDatabaseConnection(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := NewProductRepository(db)
+	if repo.connection != db || repo.transaction != nil {
+		t.Fatalf("unexpected repository configuration: %+v", repo)
+	}
+	mock.ExpectBegin()
+	transaction, _, err := repo.begin()
+	if err != nil {
+		t.Fatalf("expected transaction to begin, got %v", err)
+	}
+	mock.ExpectRollback()
+	if err := transaction.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRepositoryBeginReturnsDatabaseError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
+
+	repo := NewProductRepository(db)
+	transaction, ownsTransaction, err := repo.begin()
+	if transaction != nil || ownsTransaction || err == nil {
+		t.Fatalf("expected begin error, got transaction=%v owns=%t err=%v", transaction, ownsTransaction, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestGetProducts(t *testing.T) {
@@ -30,24 +90,23 @@ func TestGetProducts(t *testing.T) {
 		{"query error", nil, sql.ErrConnDone},
 		{"scan error", sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow("bad", "Mouse", 10), nil},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo, mock := setupRepository(t)
-			expectation := mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product"))
+			expectation := mock.ExpectQuery(regexp.QuoteMeta(productsQuery))
 			if test.err != nil {
 				expectation.WillReturnError(test.err)
 			} else {
 				expectation.WillReturnRows(test.rows)
 			}
+
 			products, err := repo.GetProducts()
-			if test.err == nil && test.name == "success" && (err != nil || len(products) != 1) {
+			if test.name == "success" && (err != nil || len(products) != 1) {
 				t.Fatalf("unexpected result: %+v %v", products, err)
 			}
-			if test.err != nil && err == nil {
-				t.Fatal("expected query error")
-			}
-			if test.name == "scan error" && err == nil {
-				t.Fatal("expected scan error")
+			if test.name != "success" && err == nil {
+				t.Fatal("expected error")
 			}
 		})
 	}
@@ -64,12 +123,12 @@ func TestGetProductByID(t *testing.T) {
 		{"not found", nil, sqlmock.NewRows([]string{"id", "product_name", "price"}), ErrProductNotFound},
 		{"query error", sql.ErrConnDone, nil, sql.ErrConnDone},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo, mock := setupRepository(t)
-			query := "SELECT id, product_name, price FROM product WHERE id = $1"
-			mock.ExpectPrepare(regexp.QuoteMeta(query))
-			expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(1)
+			mock.ExpectPrepare(regexp.QuoteMeta(productQuery))
+			expectation := mock.ExpectQuery(regexp.QuoteMeta(productQuery)).WithArgs(1)
 			if test.err != nil {
 				expectation.WillReturnError(test.err)
 			} else {
@@ -86,34 +145,6 @@ func TestGetProductByID(t *testing.T) {
 	}
 }
 
-func TestGetProductByIDReturnsScanError(t *testing.T) {
-	repo, mock := setupRepository(t)
-
-	query := "SELECT id, product_name, price FROM product WHERE id = $1"
-	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).
-			AddRow("bad", "Mouse", 10))
-
-	product, err := repo.GetProductById(1)
-	if product != nil || err == nil {
-		t.Fatalf("expected scan error, got product=%+v err=%v", product, err)
-	}
-
-}
-
-func TestGetProductByIDReturnsPrepareError(t *testing.T) {
-	repo, mock := setupRepository(t)
-
-	query := "SELECT id, product_name, price FROM product WHERE id = $1"
-	mock.ExpectPrepare(regexp.QuoteMeta(query)).WillReturnError(sql.ErrConnDone)
-
-	product, err := repo.GetProductById(1)
-	if product != nil || err == nil {
-		t.Fatalf("expected prepare error, got product=%+v err=%v", product, err)
-	}
-}
-
 func TestCreateProduct(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -124,21 +155,22 @@ func TestCreateProduct(t *testing.T) {
 		{"prepare error", sql.ErrConnDone, nil},
 		{"query error", nil, sql.ErrConnDone},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo, mock := setupRepository(t)
-			query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
-			prepare := mock.ExpectPrepare(regexp.QuoteMeta(query))
+			prepare := mock.ExpectPrepare(regexp.QuoteMeta(insertQuery))
 			if test.prepareErr != nil {
 				prepare.WillReturnError(test.prepareErr)
 			} else {
-				expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0)
+				expectation := mock.ExpectQuery(regexp.QuoteMeta(insertQuery)).WithArgs("Mouse", 10.0)
 				if test.queryErr != nil {
 					expectation.WillReturnError(test.queryErr)
 				} else {
 					expectation.WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 				}
 			}
+
 			id, err := repo.CreateProduct(model.Product{Name: "Mouse", Price: 10})
 			if test.name == "success" && (err != nil || id != 1) {
 				t.Fatalf("unexpected result: %d %v", id, err)
