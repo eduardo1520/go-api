@@ -190,6 +190,10 @@ go tool cover -func=coverage.out
 O perfil atual cobre 100% das instruções dos pacotes da aplicação:
 `cmd`, `controller`, `db`, `repository`, `response`, `service` e `usecase`.
 
+Os endpoints recebem DTOs validados e retornam DTOs específicos da API. O ID
+do produto é controlado pela rota e não pode ser definido pelo corpo da
+requisição.
+
 ## Estrutura do projeto
 
 ```text
@@ -197,6 +201,7 @@ O perfil atual cobre 100% das instruções dos pacotes da aplicação:
 ├── cmd/             # Inicialização da aplicação e rotas
 ├── controller/      # Handlers HTTP
 ├── db/              # Conexão com o PostgreSQL
+├── dto/             # DTOs de entrada e validação dos payloads
 ├── model/           # Modelos de domínio
 ├── repository/      # Acesso aos dados
 ├── response/        # DTOs das respostas HTTP

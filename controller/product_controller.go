@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"go-api/dto"
 	"go-api/model"
 	"go-api/response"
 	"go-api/service"
@@ -24,10 +25,10 @@ func NewProductController(productService service.ProductService) *ProductControl
 func (p *ProductController) GetProducts(ctx *gin.Context) {
 	products, err := p.productService.GetProducts()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao listar produtos."})
 		return
 	}
-	ctx.JSON(http.StatusOK, products)
+	ctx.JSON(http.StatusOK, productResponses(products))
 }
 
 func (p *ProductController) GetProductById(ctx *gin.Context) {
@@ -58,26 +59,24 @@ func (p *ProductController) GetProductById(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, product)
+	ctx.JSON(http.StatusOK, productResponse(*product))
 
 }
 
 func (p *ProductController) CreateProduct(ctx *gin.Context) {
-	var product model.Product
-	err := ctx.BindJSON(&product)
-
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, err)
+	var request dto.ProductRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, response.Message{Message: "Dados do produto inválidos."})
 		return
 	}
 
-	insertedProduct, err := p.productService.CreateProduct(product)
+	insertedProduct, err := p.productService.CreateProduct(productFromRequest(request))
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, response.Message{Message: "Erro ao criar produto."})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, insertedProduct)
+	ctx.JSON(http.StatusCreated, productResponse(insertedProduct))
 }
 
 func (p *ProductController) UpdateProduct(ctx *gin.Context) {
@@ -86,11 +85,12 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
-	var product model.Product
-	if err := ctx.BindJSON(&product); err != nil {
-		ctx.JSON(http.StatusBadRequest, err)
+	var request dto.ProductRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, response.Message{Message: "Dados do produto inválidos."})
 		return
 	}
+	product := productFromRequest(request)
 	product.ID = productID
 
 	if err := p.productService.UpdateProduct(product); err != nil {
@@ -102,7 +102,7 @@ func (p *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, product)
+	ctx.JSON(http.StatusOK, productResponse(product))
 }
 
 func (p *ProductController) DeleteProduct(ctx *gin.Context) {
@@ -136,4 +136,20 @@ func productIDFromContext(ctx *gin.Context) (int, bool) {
 		return 0, false
 	}
 	return productID, true
+}
+
+func productFromRequest(request dto.ProductRequest) model.Product {
+	return model.Product{Name: request.Name, Price: request.Price}
+}
+
+func productResponse(product model.Product) response.Product {
+	return response.Product{ID: product.ID, Name: product.Name, Price: product.Price}
+}
+
+func productResponses(products []model.Product) []response.Product {
+	responses := make([]response.Product, 0, len(products))
+	for _, product := range products {
+		responses = append(responses, productResponse(product))
+	}
+	return responses
 }

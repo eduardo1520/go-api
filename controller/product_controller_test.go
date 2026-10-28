@@ -133,6 +133,8 @@ func TestCreateProduct(t *testing.T) {
 		err  error
 	}{
 		{"invalid JSON", `{"name":`, http.StatusBadRequest, nil},
+		{"missing required fields", `{}`, http.StatusBadRequest, nil},
+		{"invalid price", `{"name":"Mouse","price":0}`, http.StatusBadRequest, nil},
 		{"database error", `{"name":"Mouse","price":10}`, http.StatusInternalServerError, errors.New("insert failed")},
 		{"success", `{"name":"Mouse","price":10}`, http.StatusCreated, nil},
 	}
@@ -171,6 +173,7 @@ func TestUpdateProduct(t *testing.T) {
 		{"invalid ID", "/products/nope", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
 		{"zero ID", "/products/0", `{"name":"Mouse","price":10}`, http.StatusBadRequest, nil, 0},
 		{"invalid JSON", "/products/1", `{"name":`, http.StatusBadRequest, nil, 0},
+		{"invalid fields", "/products/1", `{}`, http.StatusBadRequest, nil, 0},
 		{"not found", "/products/1", `{"name":"Mouse","price":10}`, http.StatusNotFound, nil, 0},
 		{"database error", "/products/1", `{"name":"Mouse","price":10}`, http.StatusInternalServerError, errors.New("update failed"), 0},
 		{"success", "/products/1", `{"name":"Mouse","price":10}`, http.StatusOK, nil, 1},
@@ -179,7 +182,7 @@ func TestUpdateProduct(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			router, mock := setupProductRouter(t)
-			if test.path != "/products/nope" && test.path != "/products/0" && test.body != `{"name":` {
+			if test.code != http.StatusBadRequest {
 				expectation := mock.ExpectExec(regexp.QuoteMeta("UPDATE product SET product_name = $1, price = $2 WHERE id = $3")).WithArgs("Mouse", 10.0, 1)
 				if test.err != nil {
 					expectation.WillReturnError(test.err)
