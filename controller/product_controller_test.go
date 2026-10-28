@@ -19,15 +19,17 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	repo := repository.NewProductRepository(db)
 	productUseCase := usecase.NewProductUseCase(*repo)
 	controller := NewProductController(*productUseCase)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.GET("/products", controller.GetProducts)
 	router.GET("/products/:productId", controller.GetProductById)
 	router.POST("/products", controller.CreateProduct)
-	return router, mock, func() { db.Close() }
+	return router, mock, func() { _ = db.Close() }
 }
 
 func TestGetProductByIdReturnsBadRequestForInvalidID(t *testing.T) {
@@ -49,13 +51,39 @@ func TestGetProductByIdReturnsBadRequestForInvalidID(t *testing.T) {
 	}
 }
 
+func TestGetProductsReturnsOK(t *testing.T) {
+	router, mock, cleanup := setupProductRouter(t)
+	defer cleanup()
+
+	query := "SELECT id, product_name, price FROM product"
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).
+			AddRow(1, "Mouse", 89.90))
+
+	request := httptest.NewRequest(http.MethodGet, "/products", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "Mouse") {
+		t.Fatalf("expected product in response, got %s", response.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGetProductByIdReturnsNotFound(t *testing.T) {
 	router, mock, cleanup := setupProductRouter(t)
 	defer cleanup()
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(999).WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}))
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(999).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}))
 
 	request := httptest.NewRequest(http.MethodGet, "/products/999", nil)
 	response := httptest.NewRecorder()
@@ -78,10 +106,12 @@ func TestCreateProductReturnsCreatedProduct(t *testing.T) {
 
 	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Keyboard", 149.90).
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs("Keyboard", 149.90).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(12))
 
-	request := httptest.NewRequest(http.MethodPost, "/products", strings.NewReader(`{"name":"Keyboard","price":149.90}`))
+	request := httptest.NewRequest(http.MethodPost, "/products",
+		strings.NewReader(`{"name":"Keyboard","price":149.90}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -91,6 +121,23 @@ func TestCreateProductReturnsCreatedProduct(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), `"id_product":12`) {
 		t.Fatalf("expected created product ID, got %s", response.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateProductReturnsBadRequestForInvalidJSON(t *testing.T) {
+	router, mock, cleanup := setupProductRouter(t)
+	defer cleanup()
+
+	request := httptest.NewRequest(http.MethodPost, "/products", strings.NewReader(`{"name":`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", response.Code)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
