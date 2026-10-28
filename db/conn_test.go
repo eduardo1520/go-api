@@ -13,13 +13,13 @@ func TestConnectDBReturnsConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer connection.Close()
+	t.Cleanup(func() { _ = connection.Close() })
 
 	originalOpenDB := openDB
 	openDB = func(string, string) (*sql.DB, error) {
 		return connection, nil
 	}
-	defer func() { openDB = originalOpenDB }()
+	t.Cleanup(func() { openDB = originalOpenDB })
 
 	db, err := ConnectDB()
 	if err != nil {
@@ -38,7 +38,7 @@ func TestConnectDBReturnsOpenError(t *testing.T) {
 	openDB = func(string, string) (*sql.DB, error) {
 		return nil, errors.New("open failed")
 	}
-	defer func() { openDB = originalOpenDB }()
+	t.Cleanup(func() { openDB = originalOpenDB })
 
 	db, err := ConnectDB()
 	if db != nil || err == nil || err.Error() != "open failed" {
@@ -57,7 +57,7 @@ func TestConnectDBReturnsPingError(t *testing.T) {
 	openDB = func(string, string) (*sql.DB, error) {
 		return connection, nil
 	}
-	defer func() { openDB = originalOpenDB }()
+	t.Cleanup(func() { openDB = originalOpenDB })
 
 	db, err := ConnectDB()
 	if db != nil || err == nil {

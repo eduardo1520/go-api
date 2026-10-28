@@ -14,7 +14,7 @@ import (
 	"go-api/usecase"
 )
 
-func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock, func()) {
+func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -26,7 +26,8 @@ func setupProductRouter(t *testing.T) (*gin.Engine, sqlmock.Sqlmock, func()) {
 	router.GET("/products", controller.GetProducts)
 	router.GET("/products/:productId", controller.GetProductById)
 	router.POST("/products", controller.CreateProduct)
-	return router, mock, func() { _ = db.Close() }
+	t.Cleanup(func() { _ = db.Close() })
+	return router, mock
 }
 
 func TestGetProducts(t *testing.T) {
@@ -40,8 +41,7 @@ func TestGetProducts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			router, mock, cleanup := setupProductRouter(t)
-			defer cleanup()
+			router, mock := setupProductRouter(t)
 			query := "SELECT id, product_name, price FROM product"
 			expectation := mock.ExpectQuery(regexp.QuoteMeta(query))
 			if test.err != nil {
@@ -73,8 +73,7 @@ func TestGetProductByID(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			router, mock, cleanup := setupProductRouter(t)
-			defer cleanup()
+			router, mock := setupProductRouter(t)
 			if test.path != "/products/nope" {
 				query := "SELECT id, product_name, price FROM product WHERE id = $1"
 				mock.ExpectPrepare(regexp.QuoteMeta(query))
@@ -124,8 +123,7 @@ func TestCreateProduct(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			router, mock, cleanup := setupProductRouter(t)
-			defer cleanup()
+			router, mock := setupProductRouter(t)
 			if test.err != nil || test.code == http.StatusCreated {
 				query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
 				mock.ExpectPrepare(regexp.QuoteMeta(query))

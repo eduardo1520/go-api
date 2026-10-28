@@ -10,19 +10,19 @@ import (
 	"go-api/repository"
 )
 
-func newUseCaseTest(t *testing.T) (*ProductUseCase, sqlmock.Sqlmock, func()) {
+func setupUseCase(t *testing.T) (*ProductUseCase, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	repo := repository.NewProductRepository(db)
-	return NewProductUseCase(*repo), mock, func() { _ = db.Close() }
+	t.Cleanup(func() { _ = db.Close() })
+	return NewProductUseCase(*repo), mock
 }
 
 func TestGetProductsDelegatesToRepository(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product")).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10))
@@ -37,8 +37,7 @@ func TestGetProductsDelegatesToRepository(t *testing.T) {
 }
 
 func TestGetProductsReturnsRepositoryError(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product")).
 		WillReturnError(errors.New("query failed"))
@@ -50,8 +49,7 @@ func TestGetProductsReturnsRepositoryError(t *testing.T) {
 }
 
 func TestCreateProductAssignsGeneratedID(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
@@ -65,8 +63,7 @@ func TestCreateProductAssignsGeneratedID(t *testing.T) {
 }
 
 func TestCreateProductReturnsRepositoryError(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
@@ -80,8 +77,7 @@ func TestCreateProductReturnsRepositoryError(t *testing.T) {
 }
 
 func TestGetProductByIDDelegatesToRepository(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
@@ -95,8 +91,7 @@ func TestGetProductByIDDelegatesToRepository(t *testing.T) {
 }
 
 func TestGetProductByIDReturnsRepositoryError(t *testing.T) {
-	useCase, mock, cleanup := newUseCaseTest(t)
-	defer cleanup()
+	useCase, mock := setupUseCase(t)
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))

@@ -15,13 +15,13 @@ func TestNewServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer connection.Close()
+	t.Cleanup(func() { _ = connection.Close() })
 
 	originalConnectDB := connectDB
 	connectDB = func() (*sql.DB, error) {
 		return connection, nil
 	}
-	defer func() { connectDB = originalConnectDB }()
+	t.Cleanup(func() { connectDB = originalConnectDB })
 
 	server, err := newServer()
 	if err != nil {
@@ -39,7 +39,7 @@ func TestRunReturnsDatabaseError(t *testing.T) {
 	connectDB = func() (*sql.DB, error) {
 		return nil, sql.ErrConnDone
 	}
-	defer func() { connectDB = originalConnectDB }()
+	t.Cleanup(func() { connectDB = originalConnectDB })
 
 	if err := run(); err != sql.ErrConnDone {
 		t.Fatalf("expected database error, got %v", err)
@@ -51,7 +51,7 @@ func TestRunStartsServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer connection.Close()
+	t.Cleanup(func() { _ = connection.Close() })
 
 	originalConnectDB := connectDB
 	originalRunServer := runServer
@@ -61,10 +61,10 @@ func TestRunStartsServer(t *testing.T) {
 	runServer = func(*gin.Engine) error {
 		return nil
 	}
-	defer func() {
+	t.Cleanup(func() {
 		connectDB = originalConnectDB
 		runServer = originalRunServer
-	}()
+	})
 
 	if err := run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -76,7 +76,7 @@ func TestMainEntrypoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer connection.Close()
+	t.Cleanup(func() { _ = connection.Close() })
 
 	originalConnectDB := connectDB
 	originalRunServer := runServer
@@ -86,10 +86,10 @@ func TestMainEntrypoint(t *testing.T) {
 	runServer = func(*gin.Engine) error {
 		return nil
 	}
-	defer func() {
+	t.Cleanup(func() {
 		connectDB = originalConnectDB
 		runServer = originalRunServer
-	}()
+	})
 
 	main()
 }
@@ -99,7 +99,7 @@ func TestMainEntrypointReportsError(t *testing.T) {
 	connectDB = func() (*sql.DB, error) {
 		return nil, sql.ErrConnDone
 	}
-	defer func() { connectDB = originalConnectDB }()
+	t.Cleanup(func() { connectDB = originalConnectDB })
 
 	main()
 }

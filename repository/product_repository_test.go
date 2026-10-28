@@ -10,13 +10,14 @@ import (
 	"go-api/model"
 )
 
-func newRepositoryTest(t *testing.T) (*ProductRepository, sqlmock.Sqlmock, func()) {
+func setupRepository(t *testing.T) (*ProductRepository, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewProductRepository(db), mock, func() { _ = db.Close() }
+	t.Cleanup(func() { _ = db.Close() })
+	return NewProductRepository(db), mock
 }
 
 func TestGetProducts(t *testing.T) {
@@ -31,8 +32,7 @@ func TestGetProducts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo, mock, cleanup := newRepositoryTest(t)
-			defer cleanup()
+			repo, mock := setupRepository(t)
 			expectation := mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product"))
 			if test.err != nil {
 				expectation.WillReturnError(test.err)
@@ -66,8 +66,7 @@ func TestGetProductByID(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo, mock, cleanup := newRepositoryTest(t)
-			defer cleanup()
+			repo, mock := setupRepository(t)
 			query := "SELECT id, product_name, price FROM product WHERE id = $1"
 			mock.ExpectPrepare(regexp.QuoteMeta(query))
 			expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(1)
@@ -88,8 +87,7 @@ func TestGetProductByID(t *testing.T) {
 }
 
 func TestGetProductByIDReturnsScanError(t *testing.T) {
-	repo, mock, cleanup := newRepositoryTest(t)
-	defer cleanup()
+	repo, mock := setupRepository(t)
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
@@ -105,8 +103,7 @@ func TestGetProductByIDReturnsScanError(t *testing.T) {
 }
 
 func TestGetProductByIDReturnsPrepareError(t *testing.T) {
-	repo, mock, cleanup := newRepositoryTest(t)
-	defer cleanup()
+	repo, mock := setupRepository(t)
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query)).WillReturnError(sql.ErrConnDone)
@@ -129,8 +126,7 @@ func TestCreateProduct(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo, mock, cleanup := newRepositoryTest(t)
-			defer cleanup()
+			repo, mock := setupRepository(t)
 			query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
 			prepare := mock.ExpectPrepare(regexp.QuoteMeta(query))
 			if test.prepareErr != nil {
