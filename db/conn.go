@@ -15,11 +15,13 @@ const (
 	dbname   = "postgres"
 )
 
+var openDB = sql.Open
+
 func ConnectDB() (*sql.DB, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
-	db, err := sql.Open("postgres", psqlInfo)
+	db, err := openDB("postgres", psqlInfo)
 	if err != nil {
 		return nil, err
 	}

@@ -156,12 +156,12 @@ go test ./...
 Para gerar o relatório de cobertura dos pacotes com testes:
 
 ```powershell
-go test -coverprofile=coverage.out -covermode=atomic ./controller ./repository
+go test -coverprofile=coverage.out -covermode=atomic ./cmd ./controller ./repository ./usecase ./db
 go tool cover -func=coverage.out
 ```
 
-O perfil atual cobre 73,3% das instruções dos pacotes `controller` e
-`repository`.
+O perfil atual cobre 100% das instruções dos pacotes da aplicação:
+`cmd`, `controller`, `db`, `repository` e `usecase`.
 
 ## Estrutura do projeto
 

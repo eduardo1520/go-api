@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"go-api/controller"
 	"go-api/db"
 	"go-api/repository"
@@ -9,12 +10,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var connectDB = db.ConnectDB
+var runServer = func(server *gin.Engine) error {
+	return server.Run(":8000")
+}
+
 func main() {
+	if err := run(); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func run() error {
+	server, err := newServer()
+	if err != nil {
+		return err
+	}
+	return runServer(server)
+}
+
+func newServer() (*gin.Engine, error) {
 	server := gin.Default()
 
-	dbConnection, err := db.ConnectDB()
+	dbConnection, err := connectDB()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	ProductRepository := repository.NewProductRepository(dbConnection)
@@ -31,6 +51,5 @@ func main() {
 	server.GET("/products/:productId", ProductController.GetProductById)
 	server.POST("/products", ProductController.CreateProduct)
 
-	server.Run(":8000")
-
+	return server, nil
 }

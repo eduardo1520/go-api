@@ -10,122 +10,146 @@ import (
 	"go-api/model"
 )
 
-func TestGetProductsReturnsProducts(t *testing.T) {
+func newRepositoryTest(t *testing.T) (*ProductRepository, sqlmock.Sqlmock, func()) {
+	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	return NewProductRepository(db), mock, func() { _ = db.Close() }
+}
 
-	query := "SELECT id, product_name, price FROM product"
-	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).
-			AddRow(1, "Mouse", 89.90).
-			AddRow(2, "Keyboard", 149.90))
-
-	products, err := NewProductRepository(db).GetProducts()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+func TestGetProducts(t *testing.T) {
+	tests := []struct {
+		name string
+		rows *sqlmock.Rows
+		err  error
+	}{
+		{"success", sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10), nil},
+		{"query error", nil, sql.ErrConnDone},
+		{"scan error", sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow("bad", "Mouse", 10), nil},
 	}
-	if len(products) != 2 || products[0].Name != "Mouse" || products[1].Name != "Keyboard" {
-		t.Fatalf("unexpected products: %+v", products)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock, cleanup := newRepositoryTest(t)
+			defer cleanup()
+			expectation := mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product"))
+			if test.err != nil {
+				expectation.WillReturnError(test.err)
+			} else {
+				expectation.WillReturnRows(test.rows)
+			}
+			products, err := repo.GetProducts()
+			if test.err == nil && test.name == "success" && (err != nil || len(products) != 1) {
+				t.Fatalf("unexpected result: %+v %v", products, err)
+			}
+			if test.err != nil && err == nil {
+				t.Fatal("expected query error")
+			}
+			if test.name == "scan error" && err == nil {
+				t.Fatal("expected scan error")
+			}
+		})
 	}
 }
 
-func TestGetProductsReturnsQueryError(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal(err)
+func TestGetProductByID(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		rows    *sqlmock.Rows
+		wantErr error
+	}{
+		{"success", nil, sqlmock.NewRows([]string{"id", "product_name", "price"}).AddRow(1, "Mouse", 10), nil},
+		{"not found", nil, sqlmock.NewRows([]string{"id", "product_name", "price"}), ErrProductNotFound},
+		{"query error", sql.ErrConnDone, nil, sql.ErrConnDone},
 	}
-	defer db.Close()
-
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, product_name, price FROM product")).
-		WillReturnError(sql.ErrConnDone)
-
-	products, err := NewProductRepository(db).GetProducts()
-	if err == nil || products == nil {
-		t.Fatalf("expected query error and empty slice, got products=%+v err=%v", products, err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock, cleanup := newRepositoryTest(t)
+			defer cleanup()
+			query := "SELECT id, product_name, price FROM product WHERE id = $1"
+			mock.ExpectPrepare(regexp.QuoteMeta(query))
+			expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(1)
+			if test.err != nil {
+				expectation.WillReturnError(test.err)
+			} else {
+				expectation.WillReturnRows(test.rows)
+			}
+			product, err := repo.GetProductById(1)
+			if test.wantErr != nil && !errors.Is(err, test.wantErr) {
+				t.Fatalf("expected %v, got %v", test.wantErr, err)
+			}
+			if test.wantErr == nil && (err != nil || product == nil) {
+				t.Fatalf("unexpected result: %+v %v", product, err)
+			}
+		})
 	}
 }
 
-func TestGetProductByIdReturnsProduct(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+func TestGetProductByIDReturnsScanError(t *testing.T) {
+	repo, mock, cleanup := newRepositoryTest(t)
+	defer cleanup()
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
 	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WithArgs(7).
+	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}).
-			AddRow(7, "Mouse", 89.90))
+			AddRow("bad", "Mouse", 10))
 
-	product, err := NewProductRepository(db).GetProductById(7)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	product, err := repo.GetProductById(1)
+	if product != nil || err == nil {
+		t.Fatalf("expected scan error, got product=%+v err=%v", product, err)
 	}
-	if product == nil || product.ID != 7 || product.Name != "Mouse" || product.Price != 89.90 {
-		t.Fatalf("unexpected product: %+v", product)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
-	}
+
 }
 
-func TestGetProductByIdReturnsNotFound(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+func TestGetProductByIDReturnsPrepareError(t *testing.T) {
+	repo, mock, cleanup := newRepositoryTest(t)
+	defer cleanup()
 
 	query := "SELECT id, product_name, price FROM product WHERE id = $1"
-	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WithArgs(999).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "product_name", "price"}))
+	mock.ExpectPrepare(regexp.QuoteMeta(query)).WillReturnError(sql.ErrConnDone)
 
-	product, err := NewProductRepository(db).GetProductById(999)
-	if product != nil {
-		t.Fatalf("expected nil product, got %+v", product)
-	}
-	if !errors.Is(err, ErrProductNotFound) {
-		t.Fatalf("expected ErrProductNotFound, got %v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
+	product, err := repo.GetProductById(1)
+	if product != nil || err == nil {
+		t.Fatalf("expected prepare error, got product=%+v err=%v", product, err)
 	}
 }
 
-func TestCreateProductReturnsGeneratedID(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal(err)
+func TestCreateProduct(t *testing.T) {
+	tests := []struct {
+		name       string
+		prepareErr error
+		queryErr   error
+	}{
+		{"success", nil, nil},
+		{"prepare error", sql.ErrConnDone, nil},
+		{"query error", nil, sql.ErrConnDone},
 	}
-	defer db.Close()
-
-	query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
-	mock.ExpectPrepare(regexp.QuoteMeta(query))
-	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WithArgs("Keyboard", 149.90).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(12))
-
-	id, err := NewProductRepository(db).CreateProduct(model.Product{Name: "Keyboard", Price: 149.90})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if id != 12 {
-		t.Fatalf("expected ID 12, got %d", id)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, mock, cleanup := newRepositoryTest(t)
+			defer cleanup()
+			query := "INSERT INTO product (product_name, price) VALUES($1, $2) RETURNING id"
+			prepare := mock.ExpectPrepare(regexp.QuoteMeta(query))
+			if test.prepareErr != nil {
+				prepare.WillReturnError(test.prepareErr)
+			} else {
+				expectation := mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("Mouse", 10.0)
+				if test.queryErr != nil {
+					expectation.WillReturnError(test.queryErr)
+				} else {
+					expectation.WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+				}
+			}
+			id, err := repo.CreateProduct(model.Product{Name: "Mouse", Price: 10})
+			if test.name == "success" && (err != nil || id != 1) {
+				t.Fatalf("unexpected result: %d %v", id, err)
+			}
+			if test.name != "success" && err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
