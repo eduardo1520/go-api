@@ -135,6 +135,16 @@ Corpo:
 
 Resposta: `201 Created`.
 
+## Próximas atividades
+
+- [ ] Finalizar o CRUD de produtos, adicionando operações de atualização
+  (`PUT`/`PATCH`) e exclusão (`DELETE`).
+- [ ] Adicionar testes unitários, de integração e dos endpoints da API.
+- [ ] Refatorar a arquitetura para melhorar a separação de responsabilidades,
+  a testabilidade e a manutenção do projeto.
+- [ ] Documentar e disponibilizar as rotas na web usando Swagger/OpenAPI,
+  incluindo exemplos de requisições e respostas.
+
 ## Testes
 
 Execute os testes e verifique a compilação com:
